@@ -127,6 +127,9 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  //初始化trace_mask
+  p->trace_mask = 0;
+
   return p;
 }
 
@@ -290,6 +293,10 @@ fork(void)
   np->cwd = idup(p->cwd);
 
   safestrcpy(np->name, p->name, sizeof(p->name));
+
+  //将trace_mask拷贝到子进程
+  np->trace_mask = p->trace_mask;
+
 
   pid = np->pid;
 
@@ -692,4 +699,22 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+// 获取进程数（状态不为UNUSED的进程数）
+uint64
+getnproc(void)
+{
+  struct proc *p;
+  uint64 count = 0;
+
+  for(p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if(p->state != UNUSED) {
+      count++;
+    }
+    release(&p->lock);
+  }
+  
+  return count;
 }

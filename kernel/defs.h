@@ -1,3 +1,9 @@
+/*1. 函数声明集中管理
+包含内核中所有模块的函数声明
+让其他文件可以通过 #include "defs.h" 来使用这些函数
+避免在每个文件中重复声明函数*/
+
+
 struct buf;
 struct context;
 struct file;
@@ -63,6 +69,7 @@ void            ramdiskrw(struct buf*);
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
+uint64          getfreemem(void);//获取空闲内存的字节数
 
 // log.c
 void            initlog(int, struct superblock*);
@@ -104,6 +111,7 @@ void            yield(void);
 int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
+uint64          getnproc(void);//遍历进程表，计算非UNUSED状态的进程数
 
 // swtch.S
 void            swtch(struct context*, struct context*);

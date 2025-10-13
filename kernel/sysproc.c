@@ -6,7 +6,9 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "sysinfo.h"
 
+//sysproc.c是xv6内核中处理进程管理相关系统调用的核心文件。它包含所有与进程操作相关的系统调用实现。
 uint64
 sys_exit(void)
 {
@@ -94,4 +96,33 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+// trace系统调用
+uint64
+sys_trace(void)
+{
+  int mask;
+  if(argint(0, &mask) < 0)
+    return -1;
+  myproc()->trace_mask = mask;
+  return 0;
+}
+//sysinfo系统调用
+uint64
+sys_sysinfo(void)
+{
+  uint64 addr;
+  struct sysinfo info;
+  struct proc *p = myproc();
+
+  if(argaddr(0, &addr) < 0)
+    return -1;
+
+  info.freemem = getfreemem();
+  info.nproc = getnproc();
+
+  if(copyout(p->pagetable, addr, (char *)&info, sizeof(info)) < 0)//将内核数据复制到用户空间地址
+    return -1;
+
+  return 0;
 }
