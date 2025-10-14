@@ -6,6 +6,21 @@
 #include "proc.h"
 #include "defs.h"
 #include "elf.h"
+/*
+exec.c是xv6内核中负责执行用户程序的核心文件。
+它负责将用户程序加载到内存中，并设置进程的页表、栈等。
+6. 总结
+exec.c 的运行时机：
+✅ 系统启动时 - initcode 调用 exec("/init")
+✅ 用户程序调用时 - 任何程序调用 exec() 系统调用
+✅ 进程替换时 - 需要替换当前进程的程序映像
+内核启动顺序：
+✅ 内核初始化 - 硬件、内存、文件系统等
+✅ 创建第一个进程 - userinit() 创建 pid=1 的进程
+✅ initcode 执行 - 内嵌程序调用 exec("/init")
+✅ exec() 执行 - 加载 init 程序，打印页表
+✅ init 程序运行 - 启动 shell，系统就绪
+*/
 
 static int loadseg(pde_t *pgdir, uint64 addr, struct inode *ip, uint offset, uint sz);
 
@@ -115,6 +130,7 @@ exec(char *path, char **argv)
   p->trapframe->epc = elf.entry;  // initial program counter = main
   p->trapframe->sp = sp; // initial stack pointer
   proc_freepagetable(oldpagetable, oldsz);
+  if(p->pid==1) vmprint(p->pagetable);//仅当pid为1时打印页表
 
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 

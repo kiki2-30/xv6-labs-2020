@@ -440,3 +440,35 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+
+
+// 在文件末尾添加
+
+void vmprint_recursive(pagetable_t pagetable, int level) {
+  // there are 2^9 = 512 PTEs in a page table.
+  for(int i = 0; i < 512; i++) {
+    pte_t pte = pagetable[i];
+    if(pte & PTE_V) {//pte：页表条目（Page Table Entry），通常是一个整数 PTE_V：有效位掩码（Valid bit mask），比如 0x001 &：按位与操作，逐位进行 AND 运算
+      // 打印缩进
+      for(int j = 0; j < level; j++) {
+        if (j) printf(" ");
+        printf("..");
+      }
+      
+      // 打印条目信息：索引、页表项内容、物理地址
+      printf("%d: pte %p pa %p\n", i, pte, PTE2PA(pte));
+      
+      // 判断是否是页表页（不是叶子页）
+      if((pte & (PTE_R|PTE_W|PTE_X)) == 0) {
+        // 这是页表页，需要递归
+        vmprint_recursive((pagetable_t)PTE2PA(pte), level + 1);
+      }
+    }
+  }
+}
+
+void vmprint(pagetable_t pagetable) {
+  printf("page table %p\n", pagetable);
+  vmprint_recursive(pagetable, 1);
+}
+

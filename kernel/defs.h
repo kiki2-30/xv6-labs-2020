@@ -178,6 +178,8 @@ uint64          walkaddr(pagetable_t, uint64);
 int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
+// 在 kernel/defs.h 的 vm.c 部分添加
+void            vmprint(pagetable_t);
 
 // plic.c
 void            plicinit(void);
