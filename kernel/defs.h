@@ -180,6 +180,10 @@ int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
 // 在 kernel/defs.h 的 vm.c 部分添加
 void            vmprint(pagetable_t);
+pagetable_t     proc_kpt_init(void);
+void            proc_freekernelpt(pagetable_t);
+void            proc_inithart(pagetable_t);
+void            uvmmap(pagetable_t, uint64, uint64, uint64, int);
 
 // plic.c
 void            plicinit(void);
