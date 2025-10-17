@@ -46,9 +46,23 @@ sys_sbrk(void)
 
   if(argint(0, &n) < 0)
     return -1;
-  addr = myproc()->sz;
-  if(growproc(n) < 0)
+
+  struct proc* p = myproc();
+  addr = p->sz;           // 保存旧的大小（返回值）
+  uint64 sz = p->sz;      // 当前大小
+  
+  if(n > 0) {
+    // 情况1：扩大内存 - lazy allocation
+    p->sz = sz + n;
+  } else if(sz + n > 0) {
+    // 情况2：缩小内存 - 真正释放物理页面
+    sz = uvmdealloc(p->pagetable, sz, sz + n);
+    p->sz = sz;
+  } else {
+    // 情况3：缩小后大小 <= 0，非法
     return -1;
+  }
+  
   return addr;
 }
 

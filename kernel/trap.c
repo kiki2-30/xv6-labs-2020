@@ -68,9 +68,31 @@ usertrap(void)
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
-    printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
-    printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-    p->killed = 1;
+    // 处理页面错误 (scause 13 = load page fault, 15 = store page fault)
+    uint64 cause = r_scause();
+    if(cause == 13 || cause == 15) {
+      uint64 fault_va = r_stval();  // 获取导致页面错误的虚拟地址
+      char* pa;
+      
+      // Lazy allocation: 检查地址有效性并分配物理页面
+      if(PGROUNDUP(p->trapframe->sp) - 1 < fault_va && 
+         fault_va < p->sz &&
+         (pa = kalloc()) != 0) {
+        memset(pa, 0, PGSIZE);
+        if(mappages(p->pagetable, PGROUNDDOWN(fault_va), PGSIZE, 
+                    (uint64)pa, PTE_R | PTE_W | PTE_X | PTE_U) != 0) {
+          kfree(pa);
+          p->killed = 1;
+        }
+      } else {
+        // 地址非法或内存分配失败
+        p->killed = 1;
+      }
+    } else {
+      printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
+      printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+      p->killed = 1;
+    }
   }
 
   if(p->killed)

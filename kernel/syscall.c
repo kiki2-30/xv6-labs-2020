@@ -68,6 +68,28 @@ int
 argaddr(int n, uint64 *ip)
 {
   *ip = argraw(n);
+  struct proc* p = myproc();
+
+  // 处理向系统调用传入 lazy allocation 地址的情况
+  if(walkaddr(p->pagetable, *ip) == 0) {
+    // 页面未映射，检查是否是合法的 lazy allocation 地址
+    if(PGROUNDUP(p->trapframe->sp) - 1 < *ip && *ip < p->sz) {
+      // 合法地址，分配物理页面
+      char* pa = kalloc();
+      if(pa == 0)
+        return -1;  // 内存分配失败
+      memset(pa, 0, PGSIZE);
+
+      if(mappages(p->pagetable, PGROUNDDOWN(*ip), PGSIZE, (uint64)pa, PTE_R | PTE_W | PTE_X | PTE_U) != 0) {
+        kfree(pa);
+        return -1;  // 映射失败
+      }
+    } else {
+      // 非法地址
+      return -1;
+    }
+  }
+
   return 0;
 }
 
