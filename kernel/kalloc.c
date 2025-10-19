@@ -90,16 +90,17 @@ kalloc(void)
 
   acquire(&kmem.lock);
   r = kmem.freelist;
-  if(r) {
+  if(r)
     kmem.freelist = r->next;
+  release(&kmem.lock);  // 先释放kmem.lock，避免嵌套锁
+
+  if(r) {
+    memset((char*)r, 5, PGSIZE); // fill with junk
+    // 再单独获取ref.lock
     acquire(&ref.lock);
     ref.cnt[(uint64)r / PGSIZE] = 1;  // 将引用计数初始化为1
     release(&ref.lock);
   }
-  release(&kmem.lock);
-
-  if(r)
-    memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
 }
 
@@ -178,7 +179,10 @@ void* cowalloc(pagetable_t pagetable, uint64 va) {
  * @return 引用计数
  */
 int krefcnt(void* pa) {
-  return ref.cnt[(uint64)pa / PGSIZE];
+  acquire(&ref.lock);
+  int cnt = ref.cnt[(uint64)pa / PGSIZE];
+  release(&ref.lock);
+  return cnt;
 }
 
 /**
