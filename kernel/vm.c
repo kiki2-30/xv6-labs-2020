@@ -305,34 +305,48 @@ uvmfree(pagetable_t pagetable, uint64 sz)
 // physical memory.
 // returns 0 on success, -1 on failure.
 // frees any allocated pages on failure.
-int
-uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
+int uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 {
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
+  // ✗ 不再需要 char *mem
 
   for(i = 0; i < sz; i += PGSIZE){
+    // 获取父进程的页面信息（与原始相同）
     if((pte = walk(old, i, 0)) == 0)
       panic("uvmcopy: pte should exist");
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
-      goto err;
+
+    // ═══════════════════════════════════
+    // 新增：修改父进程的PTE
+    // ═══════════════════════════════════
+    if(flags & PTE_W) {  // 只处理可写页面
+      // 设置COW标志 + 清除写权限
+      flags = (flags | PTE_COW) & ~PTE_W;
+      
+      // 修改父进程的PTE
+      *pte = PA2PTE(pa) | flags;
     }
+
+    // ═══════════════════════════════════
+    // 子进程直接映射到相同的物理页
+    // ═══════════════════════════════════
+    if(mappages(new, i, PGSIZE, pa, flags) != 0) {
+      // ✗ 不需要 kfree(mem)，因为没有分配新内存
+      uvmunmap(new, 0, i / PGSIZE, 1);
+      return -1;
+    }
+    
+    // ═══════════════════════════════════
+    // 增加物理页的引用计数
+    // ═══════════════════════════════════
+    kaddrefcnt((char*)pa);
   }
   return 0;
-
- err:
-  uvmunmap(new, 0, i / PGSIZE, 1);
-  return -1;
 }
 
 // mark a PTE invalid for user access.
@@ -351,19 +365,28 @@ uvmclear(pagetable_t pagetable, uint64 va)
 // Copy from kernel to user.
 // Copy len bytes from src to virtual address dstva in a given page table.
 // Return 0 on success, -1 on error.
-int
-copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
+int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 {
   uint64 n, va0, pa0;
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
+    
+    // 先处理COW页面，再获取物理地址
+    if(cowpage(pagetable, va0) == 0) {
+      if(cowalloc(pagetable, va0) == 0)
+        return -1;
+    }
+    
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0)
       return -1;
+    
     n = PGSIZE - (dstva - va0);
     if(n > len)
       n = len;
+    
+    // 现在pa0指向可写的页面了
     memmove((void *)(pa0 + (dstva - va0)), src, n);
 
     len -= n;

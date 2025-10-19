@@ -331,6 +331,15 @@ sfence_vma()
 #define PTE_W (1L << 2)
 #define PTE_X (1L << 3)
 #define PTE_U (1L << 4) // 1 -> user can access
+// ❌ bit 5-7: 由硬件管理
+// bit 5: G (Global) - 可能被使用
+// bit 6: A (Accessed) - 硬件自动设置
+// bit 7: D (Dirty) - 硬件自动设置
+
+// ✅ bit 8-9: RSW - 完美选择！
+#define PTE_COW (1L << 8)  // 我们可以安全使用
+
+// ❌ bit 10-63: 存储物理页号，不能修改
 
 // shift a physical address to the right place for a PTE.
 #define PA2PTE(pa) ((((uint64)pa) >> 12) << 10)

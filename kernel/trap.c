@@ -67,6 +67,20 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+
+  }else if((r_scause() == 15) ){
+    // 获取触发错误的虚拟地址
+    uint64 fault_va = r_stval();
+    
+    // 三重检查：
+    if(fault_va >= p->sz                           // ① 地址越界？
+      || cowpage(p->pagetable, fault_va) != 0     // ② 不是COW页面？
+      || cowalloc(p->pagetable, PGROUNDDOWN(fault_va)) == 0)  // ③ 分配失败？
+      p->killed = 1;  // 任一条件失败，终止进程
+    // 否则，COW处理成功，继续执行
+    
+  // 处理其他异常（不变）
+
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
