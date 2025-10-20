@@ -1,0 +1,31 @@
+为什么两个线程都会丢失键？
+
+原因：竞态条件（Race Condition）
+
+当两个线程同时调用put()函数向同一个散列桶插入数据时，会发生数据竞争。
+
+具体的事件序列如下：
+
+假设有两个线程T1和T2，它们要插入的键key1和key2满足 key1 % NBUCKET == key2 % NBUCKET，
+即它们要插入到同一个散列桶table[i]中。
+
+时间线：
+1. T1执行put(key1, value1)，进入for循环检查，发现key1不存在
+2. T2执行put(key2, value2)，进入for循环检查，发现key2不存在
+3. T1调用insert(key1, value1, &table[i], table[i])
+   - 此时table[i]假设为NULL
+   - T1创建新节点e1，e1->next = NULL
+4. T2调用insert(key2, value2, &table[i], table[i])
+   - 此时table[i]仍然可能为NULL（T1还未完成赋值）
+   - T2创建新节点e2，e2->next = NULL
+5. T1执行 *p = e1，即 table[i] = e1
+6. T2执行 *p = e2，即 table[i] = e2  <-- 覆盖了T1的插入！
+
+结果：key1丢失了，因为table[i]最终只指向e2，e1被覆盖了。
+
+这就是为什么两个线程都会报告有键丢失的原因。每个线程都可能覆盖其他线程的插入操作。
+
+解决方案：
+使用互斥锁（mutex）保护insert操作，确保同一时刻只有一个线程可以修改某个散列桶。
+为了提高并发性能，我们为每个散列桶单独使用一把锁，这样不同散列桶的操作可以并行进行。
+
