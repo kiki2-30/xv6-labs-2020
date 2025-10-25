@@ -146,6 +146,7 @@ void            trapinit(void);
 void            trapinithart(void);
 extern struct spinlock tickslock;
 void            usertrapret(void);
+int             mmap_handler(uint64, uint64);
 
 // uart.c
 void            uartinit(void);
