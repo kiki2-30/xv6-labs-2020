@@ -18,36 +18,61 @@ extern char etext[];  // kernel.ld sets this to end of kernel code.
 extern char trampoline[]; // trampoline.S
 
 /*
- * create a direct-map page table for the kernel.
+ * 内核虚拟内存初始化函数
+ * 创建内核页表并建立内核空间的关键内存映射
  */
-void
-kvminit()
-{
-  kernel_pagetable = (pagetable_t) kalloc();
-  memset(kernel_pagetable, 0, PGSIZE);
-
-  // uart registers
-  kvmmap(UART0, UART0, PGSIZE, PTE_R | PTE_W);
-
-  // virtio mmio disk interface
-  kvmmap(VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
-
-  // CLINT
-  kvmmap(CLINT, CLINT, 0x10000, PTE_R | PTE_W);
-
-  // PLIC
-  kvmmap(PLIC, PLIC, 0x400000, PTE_R | PTE_W);
-
-  // map kernel text executable and read-only.
-  kvmmap(KERNBASE, KERNBASE, (uint64)etext-KERNBASE, PTE_R | PTE_X);
-
-  // map kernel data and the physical RAM we'll make use of.
-  kvmmap((uint64)etext, (uint64)etext, PHYSTOP-(uint64)etext, PTE_R | PTE_W);
-
-  // map the trampoline for trap entry/exit to
-  // the highest virtual address in the kernel.
-  kvmmap(TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
-}
+ void
+ kvminit()
+ {
+   // 分配一页物理内存作为内核页表的根页表
+   kernel_pagetable = (pagetable_t) kalloc();
+   // 清空页表内容，确保所有条目初始为0
+   memset(kernel_pagetable, 0, PGSIZE);
+ 
+   // 映射UART（串口）寄存器
+   // UART0: 串口设备的物理地址和虚拟地址相同（直接映射）
+   // PGSIZE: 映射一页大小
+   // PTE_R | PTE_W: 页面可读可写，用于串口输入输出
+   kvmmap(UART0, UART0, PGSIZE, PTE_R | PTE_W);
+ 
+   // 映射VirtIO磁盘接口的MMIO（内存映射IO）区域
+   // VIRTIO0: 虚拟IO磁盘设备的寄存器区域
+   // PTE_R | PTE_W: 可读可写，用于磁盘读写操作
+   kvmmap(VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
+ 
+   // 映射CLINT（核心本地中断器）
+   // CLINT: 处理定时器和软件中断的硬件寄存器
+   // 0x10000: 映射64KB大小，覆盖所有CLINT寄存器
+   // PTE_R | PTE_W: 可读可写，用于配置定时器和触发软件中断
+   kvmmap(CLINT, CLINT, 0x10000, PTE_R | PTE_W);
+ 
+   // 映射PLIC（平台级中断控制器）
+   // PLIC: 管理所有外部设备中断的中断控制器
+   // 0x400000: 映射4MB大小，覆盖PLIC所有配置寄存器
+   // PTE_R | PTE_W: 可读可写，用于中断优先级配置和响应处理
+   kvmmap(PLIC, PLIC, 0x400000, PTE_R | PTE_W);
+ 
+   // 映射内核代码段（文本段），设置为只读和可执行
+   // KERNBASE: 内核代码起始的虚拟地址
+   // KERNBASE: 对应的物理地址（恒等映射）
+   // (uint64)etext-KERNBASE: 从内核基地址到代码段结束的大小
+   // PTE_R | PTE_X: 可读且可执行，保护内核代码不被修改
+   kvmmap(KERNBASE, KERNBASE, (uint64)etext-KERNBASE, PTE_R | PTE_X);
+ 
+   // 映射内核数据段和可用物理内存
+   // (uint64)etext: 内核数据段起始地址（代码段之后）
+   // (uint64)etext: 对应的物理地址
+   // PHYSTOP-(uint64)etext: 从数据段开始到物理内存结束的大小
+   // PTE_R | PTE_W: 可读可写，用于内核数据结构和动态内存分配
+   kvmmap((uint64)etext, (uint64)etext, PHYSTOP-(uint64)etext, PTE_R | PTE_W);
+ 
+   // 映射陷阱跳板页面（trampoline）到内核地址空间最高处
+   // TRAMPOLINE: 跳板页面的虚拟地址（通常在内核空间最顶部）
+   // (uint64)trampoline: 跳板代码的物理地址
+   // PGSIZE: 映射一页大小
+   // PTE_R | PTE_X: 可读且可执行，用于用户态和内核态之间的安全切换
+   kvmmap(TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
+ }
 
 // Switch h/w page table register to the kernel's page table,
 // and enable paging.
